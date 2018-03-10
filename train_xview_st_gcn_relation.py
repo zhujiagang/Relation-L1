@@ -317,9 +317,9 @@ class Processor():
             # forward
             output, mask = self.model(data)
             loss = self.loss(output, label)
-            mask = torch.cat(mask)
-            mask_L1_loss = mask.abs().sum() * self.arg.L1_weight_decay
-            loss += mask_L1_loss
+            # mask = torch.cat(mask)
+            # mask_L1_reg = mask.abs().sum() * self.arg.L1_weight_decay
+            # loss += mask_L1_reg
 
             # backward
             self.optimizer.zero_grad()

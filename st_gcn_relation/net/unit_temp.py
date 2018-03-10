@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from .net import conv_init
-import numpy as np
+
 
 class unit_gcn(nn.Module):
     def __init__(self,
@@ -71,17 +71,16 @@ class unit_gcn(nn.Module):
         self.A = self.A.cuda(x.get_device())
         A = self.A
 
-        tt = np.eye(V)
+        temp = []
         for i in range(V):
             a = A[0, i, i] * (self.mask[:, i].sum(0) - self.mask[i, i].detach())
-            tt[i, i] = a.data.cpu().numpy()
+            temp.append(a)
+        temp = torch.cat(temp, 0).view(1, -1).repeat(N * C * T, 1)
 
-        temp = Variable(torch.from_numpy(tt).float().cuda(), requires_grad=False)
         # graph convolution
         for i, a in enumerate(A):
             if i == 0:
-                xa = x.view(-1, V).mm(temp).view(N, C, T, V)
-                # xa = (x.view(-1, V)).view(N, C, T, V)
+                xa = (x.view(-1, V) * temp).view(N, C, T, V)
                 y = self.conv_list[i](xa)
             else:
                 a = a * self.mask
