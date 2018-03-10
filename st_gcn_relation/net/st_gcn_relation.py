@@ -151,11 +151,14 @@ class Model(nn.Module):
             # from (N, C, T, V, M) to (N*M, C, T, V)
             x = x.permute(0, 4, 1, 2, 3).contiguous().view(N * M, C, T, V)
 
+        mask = []
         # model
-        x = self.gcn0(x)
+        x, mm = self.gcn0(x)
+        mask.append(mm)
         x = self.tcn0(x)
         for m in self.backbone:
-            x = m(x)
+            x, mm = m(x)
+            mask.append(mm)
 
         # V pooling
         x = F.avg_pool2d(x, kernel_size=(1, V))
@@ -172,7 +175,7 @@ class Model(nn.Module):
         x = F.avg_pool1d(x, x.size()[2:])
         x = x.view(N, self.num_class)
 
-        return x
+        return x, mask
 
 
 class TCN_GCN_unit(nn.Module):
@@ -211,9 +214,10 @@ class TCN_GCN_unit(nn.Module):
 
     def forward(self, x):
         # N, C, T, V = x.size()
-        x = self.tcn1(self.gcn1(x)) + (x if
+        xx, mm = self.gcn1(x)
+        x = self.tcn1(xx) + (x if
                                        (self.down1 is None) else self.down1(x))
-        return x
+        return x, mm
 
 
 class TCN_GCN_unit_multiscale(nn.Module):

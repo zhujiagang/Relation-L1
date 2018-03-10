@@ -99,4 +99,4 @@ class unit_gcn(nn.Module):
         # nonliner
         y = self.relu(y)
 
-        return y
+        return y, self.mask
