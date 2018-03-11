@@ -72,16 +72,18 @@ class unit_gcn(nn.Module):
         A = self.A
 
         tt = np.eye(V)
+        temp = []
         for i in range(V):
             a = A[0, i, i] * (self.mask[:, i].sum(0) - self.mask[i, i].detach())
-            tt[i, i] = a.data.cpu().numpy()
+            temp.append(a)
 
-        temp = Variable(torch.from_numpy(tt).float().cuda(), requires_grad=False)
+        temp = torch.cat(temp, 0).view(1, -1).repeat(V, 1)
+        temp = Variable(torch.from_numpy(tt).float().cuda(), requires_grad=False) * temp
+
         # graph convolution
         for i, a in enumerate(A):
             if i == 0:
                 xa = x.view(-1, V).mm(temp).view(N, C, T, V)
-                # xa = (x.view(-1, V)).view(N, C, T, V)
                 y = self.conv_list[i](xa)
             else:
                 a = a * self.mask
@@ -101,3 +103,40 @@ class unit_gcn(nn.Module):
         y = self.relu(y)
 
         return y, self.mask
+
+    #### night
+    # def forward(self, x):
+    #     N, C, T, V = x.size()
+    #     self.A = self.A.cuda(x.get_device())
+    #     A = self.A
+    #
+    #     tt = np.eye(V)
+    #     for i in range(V):
+    #         a = A[0, i, i] * (self.mask[:, i].sum(0) - self.mask[i, i].detach())
+    #         tt[i, i] = a.data.cpu().numpy()
+    #
+    #     temp = Variable(torch.from_numpy(tt).float().cuda(), requires_grad=False)
+    #     # graph convolution
+    #     for i, a in enumerate(A):
+    #         if i == 0:
+    #             xa = x.view(-1, V).mm(temp).view(N, C, T, V)
+    #             y = self.conv_list[i](xa)
+    #         else:
+    #             a = a * self.mask
+    #             xa = x.view(-1, V).mm(a).view(N, C, T, V)
+    #             y = y + self.conv_list[i](xa)
+    #
+    #     # batch normalization
+    #     if self.use_local_bn:
+    #         y = y.permute(0, 1, 3, 2).contiguous().view(
+    #             N, self.out_channels * V, T)
+    #         y = self.bn(y)
+    #         y = y.view(N, self.out_channels, V, T).permute(0, 1, 3, 2)
+    #     else:
+    #         y = self.bn(y)
+    #
+    #     # nonliner
+    #     y = self.relu(y)
+    #
+    #     return y, self.mask
+    ### 83.76% eval epoch 25 lr = 0.01

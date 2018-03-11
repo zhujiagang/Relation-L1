@@ -145,6 +145,9 @@ def get_parser():
         type=float,
         default=0.0005,
         help='weight decay for optimizer')
+    parser.add_argument(
+        '--use-L1', type=str2bool, default=False, help='use nesterov or not')
+
     return parser
 
 
@@ -221,32 +224,36 @@ class Processor():
 
     def load_optimizer(self):
         if self.arg.optimizer == 'SGD':
-            parameter_dict = dict(self.model.named_parameters())  # Get parmeter of network in dictionary format wtih name being key
-
-            params = []
-            i = 0
-            # Set different learning rate to bias layers and set their weight_decay to 0
-            for name, param in parameter_dict.items():
-                i += 1
-                if name.find('mask') > -1:
-                    print( name + 'layer parameters will be penelized by L1 regulization')
-                else:
-                    lr = self.arg.base_lr
-                    weight_decay = self.arg.weight_decay
-                    if name.find('bias') > -1:
-                        print( name + 'layer parameters will be trained @ {}'.format(lr * 2))
-                        params += [{'params': [param], 'lr': lr * 2, 'weight_decay': 0}]
+            if self.arg.use_L1:
+                print ("use_L1")
+                parameter_dict = dict(self.model.named_parameters())  # Get parmeter of network in dictionary format wtih name being key
+                params = []
+                # Set different learning rate to bias layers and set their weight_decay to 0
+                for name, param in parameter_dict.items():
+                    if name.find('mask') > -1:
+                        print( name + 'layer parameters will be penelized by L1 regulization')
                     else:
-                        print( name + 'layer parameters will be trained @ {}'.format(lr))
-                        params += [{'params': [param], 'lr': lr, 'weight_decay': weight_decay}]
-
-            self.optimizer = optim.SGD(
-                # self.model.parameters(),
-                params,
-                lr=self.arg.base_lr,
-                momentum=0.9,
-                nesterov=self.arg.nesterov,
-                weight_decay=self.arg.weight_decay)
+                        lr = self.arg.base_lr
+                        weight_decay = self.arg.weight_decay
+                        if name.find('bias') > -1:
+                            print( name + 'layer parameters will be trained @ {}'.format(lr * 2))
+                            params += [{'params': [param], 'lr': lr * 2, 'weight_decay': 0}]
+                        else:
+                            print( name + 'layer parameters will be trained @ {}'.format(lr))
+                            params += [{'params': [param], 'lr': lr, 'weight_decay': weight_decay}]
+                self.optimizer = optim.SGD(
+                    params,
+                    lr=self.arg.base_lr,
+                    momentum=0.9,
+                    nesterov=self.arg.nesterov,
+                    weight_decay=self.arg.weight_decay)
+            else:
+                self.optimizer = optim.SGD(
+                    self.model.parameters(),
+                    lr=self.arg.base_lr,
+                    momentum=0.9,
+                    nesterov=self.arg.nesterov,
+                    weight_decay=self.arg.weight_decay)
             optimor = optim.SGD
         elif self.arg.optimizer == 'Adam':
             self.optimizer = optim.Adam(
@@ -317,9 +324,11 @@ class Processor():
             # forward
             output, mask = self.model(data)
             loss = self.loss(output, label)
-            # mask = torch.cat(mask)
-            # mask_L1_reg = mask.abs().sum() * self.arg.L1_weight_decay
-            # loss += mask_L1_reg
+            if self.arg.use_L1:
+                mask = torch.cat(mask)
+                N_gpus = len(self.arg.device)
+                mask_L1_reg = mask.abs().sum() * self.arg.L1_weight_decay / N_gpus
+                loss += mask_L1_reg
 
             # backward
             self.optimizer.zero_grad()
